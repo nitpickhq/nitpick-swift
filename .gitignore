@@ -1,0 +1,9 @@
+.build
+DerivedData
+.swiftpm
+*.xcodeproj
+xcuserdata
+.DS_Store
+
+# Bouwresten van xcodebuild met een eigen -derivedDataPath
+DerivedData*/
