@@ -87,6 +87,27 @@ final class NitpickController {
     /// Whether there is anything to offer: settings that are active, with at least one kind on.
     var isAvailable: Bool { settings?.offersFeedback ?? false }
 
+    /// Whether the tab is wanted now: it is on, there is something to offer, the component is closed and the current
+    /// screen is in `tabScreens` (when that is set). The list can only hide the tab, never show it where it would not be.
+    var wantsTab: Bool {
+        guard options.showsTab, isAvailable, session == nil else { return false }
+        return TabScreens.allows(screen: NitpickRegistry.shared.currentScreen?.name, list: options.tabScreens)
+    }
+
+    private var screenCheckScheduled = false
+
+    /// The current screen may have changed. With `tabScreens` set the tab is checked again, once for a burst of changes
+    /// (a screen that goes and one that comes in the same turn). An open panel stays open: only the tab is touched.
+    private func screensChanged() {
+        guard isConfigured, options.tabScreens != nil, !screenCheckScheduled else { return }
+        screenCheckScheduled = true
+        Task { @MainActor [weak self] in
+            guard let self else { return }
+            self.screenCheckScheduled = false
+            self.attach()
+        }
+    }
+
     // MARK: Setup
 
     func configure(appKey: String, options: NitpickOptions) {
@@ -94,6 +115,10 @@ final class NitpickController {
         self.options = options
         closeSession()
         tabWindows.removeAll()
+        NitpickRegistry.shared.onScreensChanged = { [weak self] in self?.screensChanged() }
+        if options.tabScreens?.isEmpty == true {
+            NitpickLog.write("tabScreens is empty: the tab shows on no screen. Leave it out to show the tab on every screen")
+        }
         if !observing {
             observing = true
             NotificationCenter.default.addObserver(forName: UIScene.didActivateNotification, object: nil, queue: .main) { [weak self] _ in
@@ -165,8 +190,7 @@ final class NitpickController {
         guard isConfigured else { return }
         tabWindows.prune()
         styleObservations.prune()
-        let show = options.showsTab && isAvailable && session == nil
-        guard show else {
+        guard wantsTab else {
             for entry in tabWindows.values { entry.window.isHidden = true }
             return
         }

@@ -54,7 +54,7 @@ struct FeedbackPayload: Codable, Equatable, Sendable {
     }
 
     static let sdkName = "swift"
-    static let sdkVersion = "0.2.0"
+    static let sdkVersion = "0.3.0"
 
     func jsonData() throws -> Data {
         let encoder = JSONEncoder()

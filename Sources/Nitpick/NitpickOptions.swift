@@ -20,6 +20,11 @@ public struct NitpickOptions: Sendable {
     /// Vertical position of the middle of the tab as a fraction of the window height (0 top, 1 bottom).
     /// The tab always stays at least 60 points from the top and bottom edge.
     public var tabVerticalPosition: Double
+    /// The screens the tab shows on, by the name you gave them with `.nitpickScreen`. `nil` (the default) shows the tab
+    /// on every screen. A rule is an exact name (capitals count) or ends on `*` and then matches every name that starts
+    /// with what comes before it (`"Checkout*"`). An empty list shows the tab nowhere. The tab only shows on a screen
+    /// that has a name; `showsTab: false` always wins. `Nitpick.present()` works on every screen.
+    public var tabScreens: [String]?
     /// Write the payload and the image to disk instead of sending them. Also fetches no settings:
     /// the tab shows at once, both kinds are on and the texts are the built-in translations.
     public var dryRun: Bool
@@ -39,6 +44,7 @@ public struct NitpickOptions: Sendable {
         showsTab: Bool = true,
         tabEdge: NitpickTabEdge = .right,
         tabVerticalPosition: Double = 0.5,
+        tabScreens: [String]? = nil,
         dryRun: Bool = false,
         dryRunDirectory: URL? = nil,
         theme: NitpickTheme = NitpickTheme(),
@@ -49,6 +55,7 @@ public struct NitpickOptions: Sendable {
         self.showsTab = showsTab
         self.tabEdge = tabEdge
         self.tabVerticalPosition = tabVerticalPosition
+        self.tabScreens = tabScreens
         self.dryRun = dryRun
         self.dryRunDirectory = dryRunDirectory
         self.theme = theme
@@ -60,4 +67,22 @@ public struct NitpickOptions: Sendable {
 /// The brand mark with domain (option `showsBrand`). The domain is not chosen yet: it is set here, in one place.
 enum NitpickBrand {
     static let domain = "nitpickhq.com"
+}
+
+/// Which screens the tab shows on: the rules for `NitpickOptions.tabScreens`.
+enum TabScreens {
+    /// A rule matches a name when it is equal to it (capitals count), or, when the rule ends on `*`,
+    /// when the name starts with what comes before the `*`.
+    static func matches(rule: String, name: String) -> Bool {
+        if rule.hasSuffix("*") { return name.hasPrefix(String(rule.dropLast())) }
+        return name == rule
+    }
+
+    /// Whether the tab may show on the screen with this name. No list: yes, on every screen, also one without a name.
+    /// A list: only on a screen with a name that one of the rules matches.
+    static func allows(screen name: String?, list: [String]?) -> Bool {
+        guard let list else { return true }
+        guard let name else { return false }
+        return list.contains { matches(rule: $0, name: name) }
+    }
 }

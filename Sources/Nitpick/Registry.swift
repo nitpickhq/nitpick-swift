@@ -92,6 +92,8 @@ final class NitpickRegistry {
     @ObservationIgnored private(set) var elements: [UUID: MarkedElement] = [:]
     @ObservationIgnored private(set) var screens: [UUID: ScreenEntry] = [:]
     @ObservationIgnored private var screenCounter = 0
+    /// Called when the current screen may have changed (a screen appeared, disappeared or changed focus).
+    @ObservationIgnored var onScreensChanged: (() -> Void)?
     /// How many frame updates came in since launch. Diagnostics only.
     @ObservationIgnored private(set) var frameUpdateCount = 0
 
@@ -137,15 +139,19 @@ final class NitpickRegistry {
     func screenAppeared(id: UUID, name: String, focused: Bool = true) {
         screenCounter += 1
         screens[id] = ScreenEntry(id: id, name: name, order: screenCounter, focused: focused)
+        onScreensChanged?()
     }
 
     /// The focus of a screen that is already known changes (a tab is selected or deselected). Unknown ids are ignored.
     func screenFocusChanged(id: UUID, focused: Bool) {
+        guard screens[id] != nil, screens[id]?.focused != focused else { return }
         screens[id]?.focused = focused
+        onScreensChanged?()
     }
 
     func screenDisappeared(id: UUID) {
         screens[id] = nil
+        onScreensChanged?()
     }
 
     /// The last screen that appeared and is still visible and has focus.

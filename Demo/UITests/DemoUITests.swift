@@ -196,7 +196,7 @@ final class DemoUITests: XCTestCase {
         XCTAssertEqual(run.payload["comment"] as? String, "Nice app")
         XCTAssertNil(run.payload["score"])
         XCTAssertFalse(String(decoding: run.payloadData, as: UTF8.self).contains("score"))
-        XCTAssertEqual((run.payload["sdk"] as? [String: String])?["version"], "0.2.0")
+        XCTAssertEqual((run.payload["sdk"] as? [String: String])?["version"], "0.3.0")
         XCTAssertNil(run.screenshot)
         let thanks = try texts("en")["sent"]!
         let sent = app.descendants(matching: .any)["nitpick.sent"]
@@ -400,6 +400,46 @@ final class DemoUITests: XCTestCase {
         XCTAssertTrue(own.waitForExistence(timeout: 10))
         own.tap()
         XCTAssertTrue(app.buttons["nitpick.close"].waitForExistence(timeout: 5))
+    }
+
+    /// The tab only shows on a screen in `tabScreens`: on Checkout (in the list) it does, on Home (outside it) it does not.
+    /// The panel can still be opened from the app's own button on Home.
+    func testTabShowsOnAScreenInTheListAndNotOnAScreenOutsideIt() throws {
+        app.launchEnvironment["NITPICK_DEMO_SCREENS"] = "Checkout"
+        app.launch()
+        let tab = app.buttons["nitpick.tab"]
+        XCTAssertTrue(app.buttons["nav.checkout"].waitForExistence(timeout: 10))
+        // Home is not in the list: no tab.
+        XCTAssertFalse(tab.waitForExistence(timeout: 2), "the tab must not show on Home")
+        listShot("swift-home-without-tab")
+        open("checkout")
+        XCTAssertTrue(app.buttons["checkout.pay"].waitForExistence(timeout: 5))
+        XCTAssertTrue(tab.waitForExistence(timeout: 5), "the tab must show on Checkout")
+        listShot("swift-checkout-with-tab")
+        // Back to Home: the tab goes again.
+        app.navigationBars.buttons.firstMatch.tap()
+        XCTAssertTrue(app.buttons["nav.checkout"].waitForExistence(timeout: 5))
+        let gone = NSPredicate(format: "exists == false")
+        wait(for: [expectation(for: gone, evaluatedWith: tab)], timeout: 5)
+        // The own button works outside the list.
+        let own = app.buttons["demo.own-button"]
+        XCTAssertTrue(own.waitForExistence(timeout: 5))
+        own.tap()
+        XCTAssertTrue(app.buttons["nitpick.close"].waitForExistence(timeout: 5), "present() works outside the list")
+    }
+
+    /// Writes a screenshot into qa/evidence/lipje-schermen/swift in the repository.
+    func listShot(_ name: String) {
+        var url = URL(fileURLWithPath: #filePath)
+        for _ in 0..<5 { url.deleteLastPathComponent() }
+        let dir = url.appending(path: "qa/evidence/lipje-schermen/swift", directoryHint: .isDirectory)
+        try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        let shot = XCUIScreen.main.screenshot()
+        try? shot.pngRepresentation.write(to: dir.appending(path: "\(name).png"))
+        let attachment = XCTAttachment(screenshot: shot)
+        attachment.name = name
+        attachment.lifetime = .keepAlways
+        add(attachment)
     }
 
     func testTabLetsTouchesThroughToTheApp() throws {

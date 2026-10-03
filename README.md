@@ -2,7 +2,7 @@
 
 In-app feedback for apps you build with AI. Users point at the exact thing that bugs them. Your coding agent pulls the report in over MCP and ships the fix.
 
-Version 0.2.0.
+Version 0.3.0.
 
 - iOS 17 or newer, Swift 6 language mode, no third-party dependencies, public APIs only.
 - When the app starts, the component asks Nitpick for the feedback settings of your app (which kinds are on, and two texts). That request carries no information about the user or the device, and nothing about it is stored on the platform. The tab shows once there are settings. Everything else waits until the user opens the panel, points, and taps Send.
@@ -14,7 +14,7 @@ Version 0.2.0.
 1. Add the package. In Xcode: File > Add Package Dependencies > add this folder or its repository URL, product `Nitpick`. In a `Package.swift`:
 
    ```swift
-   .package(path: "../path/to/packages/swift")   // or .package(url: "<repository url>", from: "0.2.0")
+   .package(path: "../path/to/packages/swift")   // or .package(url: "<repository url>", from: "0.3.0")
    // target dependency:
    .product(name: "Nitpick", package: "swift")
    ```
@@ -43,7 +43,7 @@ Version 0.2.0.
 
    The tab only shows when the app has settings: the last valid answer is kept on the device, and a fresh one is fetched at launch and when the app comes back to the foreground after more than an hour. No answer yet, an unknown key, an app that is not active, or both kinds switched off means no tab.
 
-4. Ask the user for the two things that are set in code (and nothing else): the color and the font. See "Look" below.
+4. Prepare the five questions of `install.md` (on the Nitpick site) and ask them in one message once the screens have names (step 5), with the default for each: on which screens the tab shows (`tabScreens`), the color, the font, the side and height of the tab, and which kinds of feedback (a setting of the app, not code). "default" is a fine answer to all. See "Look" and "The tab on chosen screens only" below.
 
 5. Name every important screen. Give a sheet or cover its own name:
 
@@ -89,6 +89,7 @@ var options = NitpickOptions(
     showsTab: true,
     tabEdge: .right,              // or .left; physical, also in an app that runs from right to left
     tabVerticalPosition: 0.5,     // the middle of the tab as a fraction of the window height, 0 top ... 1 bottom
+    tabScreens: nil,              // nil: the tab shows on every screen; or a list of screen names, see below
     dryRun: false,                // true: send nothing, fetch no settings (see below)
     theme: NitpickTheme(),        // color and font, see below
     showsBrand: false,            // a small mark with the Nitpick domain under the panel
@@ -97,6 +98,16 @@ var options = NitpickOptions(
 ```
 
 The tab always stays at least 60 points from the top and the bottom edge. Which kinds of feedback are on, and the two texts `footer` and `thanks`, are not options: you set them in the Nitpick dashboard, with the CLI or through MCP, and the component fetches them.
+
+### The tab on chosen screens only
+
+By default the tab shows on every screen. To show it only on some, pass the names you gave with `.nitpickScreen`:
+
+```swift
+NitpickOptions(tabScreens: ["Checkout", "Settings*"])
+```
+
+A name must be equal to the screen's name (capitals count); a name that ends on `*` matches every screen whose name starts with what comes before the `*` (`"Settings*"` matches `"Settings"` and `"Settings / profile"`). The current screen is the one a report would get as `screen`: the last one that appeared and is still visible and has focus. On a screen without a name the tab does not show. An empty list shows the tab nowhere and writes one line in the developer log. `showsTab: false` always wins. The panel stays open when the screen changes, and `Nitpick.present()` works on every screen, also outside the list. The list can only hide the tab: it never shows it where the settings say there is nothing to offer.
 
 `dryRun: true` is the way to test without a server: it writes `payload.json` and `screenshot.jpg` to `Documents/nitpick-dryrun` (set `dryRunDirectory` to choose the folder), fetches no settings, shows the tab at once, has both kinds on and uses the built-in translations.
 

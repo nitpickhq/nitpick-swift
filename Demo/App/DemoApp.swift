@@ -23,6 +23,10 @@ struct DemoApp: App {
         if env["NITPICK_DEMO_TAB"] == "off" { options.showsTab = false }
         if env["NITPICK_DEMO_TAB"] == "left" { options.tabEdge = .left }
         if let position = env["NITPICK_DEMO_VERTICAL"].flatMap(Double.init) { options.tabVerticalPosition = position }
+        // NITPICK_DEMO_SCREENS=Checkout,Settings*: the tab shows only on these screens (a comma separated list).
+        if let screens = env["NITPICK_DEMO_SCREENS"] {
+            options.tabScreens = screens.split(separator: ",").map { String($0).trimmingCharacters(in: .whitespaces) }
+        }
         if env["NITPICK_DEMO_BRAND"] == "1" { options.showsBrand = true }
         options.language = env["NITPICK_DEMO_LANGUAGE"]
         Nitpick.configure(appKey: env["NITPICK_KEY"] ?? "npk_demo00000000000000000000", options: options)
