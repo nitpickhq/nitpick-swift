@@ -235,8 +235,10 @@ final class NitpickController {
     }
 
     private static func interactiveArea(for signature: TabSignature) -> (CGSize) -> CGRect {
-        { size in
-            TabGeometry.rect(in: size, tab: TabGeometry.size, edge: signature.edge, verticalPosition: signature.verticalPosition)
+        // The size of the tab follows from its style and its label: measured once here, not at every touch.
+        let hit = TabMetrics.measured(label: signature.label, look: signature.look).hitSize
+        return { size in
+            TabGeometry.rect(in: size, tab: hit, edge: signature.edge, verticalPosition: signature.verticalPosition)
         }
     }
 

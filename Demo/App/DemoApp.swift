@@ -19,7 +19,14 @@ struct DemoApp: App {
         if let hex = env["NITPICK_DEMO_COLOR"], let value = UInt32(hex, radix: 16), hex.count == 6 {
             color = .accent(Color(red: Double((value >> 16) & 0xFF) / 255, green: Double((value >> 8) & 0xFF) / 255, blue: Double(value & 0xFF) / 255))
         }
-        options.theme = NitpickTheme(color: color, fontName: env["NITPICK_DEMO_FONT"])
+        // NITPICK_DEMO_TABSTYLE=accent|material|ink|icon: the style of the tab. Without it (or unknown): accent.
+        let tabStyle: NitpickTabStyle = switch env["NITPICK_DEMO_TABSTYLE"] {
+        case "material": .material
+        case "ink": .ink
+        case "icon": .icon
+        default: .accent
+        }
+        options.theme = NitpickTheme(color: color, fontName: env["NITPICK_DEMO_FONT"], tabStyle: tabStyle)
         if env["NITPICK_DEMO_TAB"] == "off" { options.showsTab = false }
         if env["NITPICK_DEMO_TAB"] == "left" { options.tabEdge = .left }
         if let position = env["NITPICK_DEMO_VERTICAL"].flatMap(Double.init) { options.tabVerticalPosition = position }

@@ -1,7 +1,7 @@
 import SwiftUI
 import UIKit
 
-/// The color of the send button, the mark of the chosen row and the rim of the tab.
+/// The color of the send button, the mark of the chosen row and the fill of the tab (style `.accent` and `.icon`).
 public enum NitpickColor: Sendable {
     /// Ink: near black in light, near white in dark.
     case standard
@@ -9,17 +9,33 @@ public enum NitpickColor: Sendable {
     case accent(Color)
 }
 
-/// The two things you choose in code: the color and the font. Everything else is fixed.
+/// The look of the tab on the screen edge. You choose one; the default is `.accent`.
+/// Every style has the same side, height, `tabScreens`, VoiceOver label and touch area (at least 44 by 76 points).
+public enum NitpickTabStyle: Sendable, CaseIterable {
+    /// A solid tab in the accent color of your app (ink with `.standard`), the label turned on it. The default.
+    case accent
+    /// A quiet, frosted tab: neutral material with a hairline and ink text. Opaque with Reduce Transparency.
+    case material
+    /// A black (white in dark) tab with ink text and a small accent bar at the bottom.
+    case ink
+    /// A small tab with only a speech bubble that slides out to "Feedback" when it is touched.
+    case icon
+}
+
+/// The things you choose in code: the color, the font and the style of the tab. Everything else is fixed.
 public struct NitpickTheme: Sendable {
     public var color: NitpickColor
     /// The PostScript name of a font that is already in your app. Used for headings and buttons only.
     /// `nil` uses the system font. Languages such as Arabic, Hindi, Japanese, Korean and Chinese
     /// always use the system font.
     public var fontName: String?
+    /// The look of the edge tab: `.accent` (default), `.material`, `.ink` or `.icon`.
+    public var tabStyle: NitpickTabStyle
 
-    public init(color: NitpickColor = .standard, fontName: String? = nil) {
+    public init(color: NitpickColor = .standard, fontName: String? = nil, tabStyle: NitpickTabStyle = .accent) {
         self.color = color
         self.fontName = fontName
+        self.tabStyle = tabStyle
     }
 }
 
@@ -129,7 +145,7 @@ struct NitpickLook: Equatable {
     var theme: NitpickTheme
     var language: String
 
-    static func == (lhs: NitpickLook, rhs: NitpickLook) -> Bool { lhs.language == rhs.language && lhs.theme.fontName == rhs.theme.fontName }
+    static func == (lhs: NitpickLook, rhs: NitpickLook) -> Bool { lhs.language == rhs.language && lhs.theme.fontName == rhs.theme.fontName && lhs.theme.tabStyle == rhs.theme.tabStyle }
 
     /// The custom font name when it may be used: not for the six system-font languages, and only when the app has it.
     var customFontName: String? {

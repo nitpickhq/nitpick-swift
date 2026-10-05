@@ -196,7 +196,7 @@ final class DemoUITests: XCTestCase {
         XCTAssertEqual(run.payload["comment"] as? String, "Nice app")
         XCTAssertNil(run.payload["score"])
         XCTAssertFalse(String(decoding: run.payloadData, as: UTF8.self).contains("score"))
-        XCTAssertEqual((run.payload["sdk"] as? [String: String])?["version"], "0.3.0")
+        XCTAssertEqual((run.payload["sdk"] as? [String: String])?["version"], "0.3.1")
         XCTAssertNil(run.screenshot)
         let thanks = try texts("en")["sent"]!
         let sent = app.descendants(matching: .any)["nitpick.sent"]
@@ -1115,5 +1115,104 @@ final class DemoUITests: XCTestCase {
         XCTAssertEqual(c.element, "tabs.settings_card", "C")
         XCTAssertEqual(c.match, "exact", "C")
         XCTAssertEqual(c.screen, "Tabs settings", "C")
+    }
+
+    // MARK: Masks and the focus of a screen (TabView)
+
+    /// qa/evidence/masker-focus in the repository.
+    var maskFocusEvidenceDir: URL {
+        var url = URL(fileURLWithPath: #filePath)
+        for _ in 0..<5 { url.deleteLastPathComponent() }
+        return url.appending(path: "qa/evidence/masker-focus")
+    }
+
+    /// A mask on a tab that is not selected must not draw a black box on the picture of the selected tab; a mask on the
+    /// selected tab must. Home has a masked band at the bottom; Settings has an open band on the same place and a masked
+    /// band above it. Both tabs have been mounted. The pictures that go with the feedback are kept as evidence.
+    func testMaskOnAHiddenTabIsNotBlackOnTheSelectedTab() throws {
+        try maskFocusScenario(mode: "tabview")
+    }
+
+    /// The same with a `ZStack` where the hidden page stays mounted at opacity 0: its mask keeps a frame in the window.
+    func testMaskOnAHiddenPageInAZStackIsNotBlackOnTheSelectedPage() throws {
+        try maskFocusScenario(mode: "zstack")
+    }
+
+    /// `NITPICK_TABS_FOCUS=off` is not used here; the mask test always passes the focus, like the docs say.
+    func maskFocusScenario(mode: String) throws {
+        // pointAndSend keeps its own copy in the older evidence map; this test keeps its pictures in masker-focus.
+        defer {
+            for file in (try? FileManager.default.contentsOfDirectory(at: overigDir, includingPropertiesForKeys: nil)) ?? []
+            where file.lastPathComponent.hasPrefix("masker-focus-") { try? FileManager.default.removeItem(at: file) }
+        }
+        app.launchEnvironment["NITPICK_DEMO_TABS_MASKS"] = mode
+        app.launch()
+        open("tabs")
+        func switchTo(_ tab: String) {
+            if mode == "zstack" { app.buttons["tabs.switch-\(tab.lowercased())"].tap() } else { app.tabBars.buttons[tab].tap() }
+        }
+        let homeMask = app.descendants(matching: .any)["tabs.home-mask"]
+        XCTAssertTrue(homeMask.waitForExistence(timeout: 10), "tab Home not shown")
+        // Visit Settings and come back, so both tabs have been mounted.
+        switchTo("Settings")
+        XCTAssertTrue(app.descendants(matching: .any)["tabs.settings-open"].waitForExistence(timeout: 5))
+        switchTo("Home")
+        XCTAssertTrue(homeMask.waitForExistence(timeout: 5))
+        try FileManager.default.createDirectory(at: maskFocusEvidenceDir, withIntermediateDirectories: true)
+
+        /// Points at the card of the shown tab, sends, and returns the picture, the viewport and the mean brightness
+        /// (0 black, 255 white) at the left of the middle of the given frames, beside the text.
+        func picture(_ name: String, card: String, frames: [String: CGRect]) throws -> [String: Double] {
+            for folder in (try? FileManager.default.contentsOfDirectory(at: dryRunDir, includingPropertiesForKeys: nil)) ?? [] {
+                try? FileManager.default.removeItem(at: folder)
+            }
+            sleep(1)
+            let run = try pointAndSend(at: app.descendants(matching: .any)[card], name: "masker-focus-\(mode)-\(name)")
+            let sentClose = app.buttons["nitpick.sent-close"]
+            if sentClose.waitForExistence(timeout: 5) { sentClose.tap() }
+            XCTAssertTrue(app.buttons["nitpick.tab"].waitForExistence(timeout: 5), "the panel did not close after \(name)")
+            let jpeg = try XCTUnwrap(run.screenshot)
+            try jpeg.write(to: maskFocusEvidenceDir.appending(path: "\(mode)-\(name)-screenshot.jpg"))
+            let image = try XCTUnwrap(UIImage(data: jpeg))
+            let viewport = try XCTUnwrap(run.payload["viewport"] as? [String: Double])
+            var result: [String: Double] = [:]
+            for (key, frame) in frames {
+                let cg = image.cgImage!
+                let x = Int((frame.minX + 12) / viewport["width"]! * Double(cg.width))
+                let y = Int(frame.midY / viewport["height"]! * Double(cg.height))
+                var px = [UInt8](repeating: 0, count: 4)
+                let ctx = CGContext(data: &px, width: 1, height: 1, bitsPerComponent: 8, bytesPerRow: 4, space: CGColorSpaceCreateDeviceRGB(), bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue)!
+                ctx.draw(cg, in: CGRect(x: -x, y: -(cg.height - 1 - y), width: cg.width, height: cg.height))
+                result[key] = Double(Int(px[0]) + Int(px[1]) + Int(px[2])) / 3
+            }
+            return result
+        }
+
+        // Home shown: its own mask is black.
+        let homeMaskFrame = homeMask.frame
+        let home = try picture("home", card: "tabs.home-card", frames: ["home_mask": homeMaskFrame])
+
+        // Settings shown: the mask of Home lies on the open band of Settings and must not turn it black.
+        switchTo("Settings")
+        let openBand = app.descendants(matching: .any)["tabs.settings-open"]
+        let secret = app.descendants(matching: .any)["tabs.settings-mask"]
+        XCTAssertTrue(openBand.waitForExistence(timeout: 5))
+        sleep(1)
+        let openFrame = openBand.frame, secretFrame = secret.frame
+        let settings = try picture("settings", card: "tabs.settings-card", frames: ["settings_open": openFrame, "settings_mask": secretFrame])
+
+        let report: [String: Any] = [
+            "home_mask_helderheid": home["home_mask"] ?? -1,
+            "settings_open_helderheid": settings["settings_open"] ?? -1,
+            "settings_mask_helderheid": settings["settings_mask"] ?? -1,
+            "home_mask_frame": "\(homeMaskFrame)",
+            "settings_open_frame": "\(openFrame)",
+        ]
+        try JSONSerialization.data(withJSONObject: report, options: [.prettyPrinted, .sortedKeys])
+            .write(to: maskFocusEvidenceDir.appending(path: "\(mode)-uitkomst.json"))
+
+        XCTAssertLessThan(home["home_mask"] ?? 255, 25, "the mask on the shown tab Home is not black")
+        XCTAssertLessThan(settings["settings_mask"] ?? 255, 25, "the mask on the shown tab Settings is not black")
+        XCTAssertGreaterThan(settings["settings_open"] ?? 0, 60, "the mask of the hidden tab Home draws a black box on Settings")
     }
 }

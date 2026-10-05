@@ -84,7 +84,7 @@ struct SessionTests {
         #expect(object["kind"] as? String == "general")
         #expect(object["comment"] as? String == "Nice app")
         #expect(object["score"] == nil)
-        #expect((object["sdk"] as? [String: String])?["version"] == "0.3.0")
+        #expect((object["sdk"] as? [String: String])?["version"] == "0.3.1")
         #expect(!FileManager.default.fileExists(atPath: folder.appending(path: "screenshot.jpg").path))
         await wait { session.phase == .sent }
         #expect(session.phase == .sent)

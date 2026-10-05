@@ -202,6 +202,132 @@ struct RegistryTests {
         #expect(registry.maskFrames() == [CGRect(x: 0, y: 0, width: 5, height: 5)])
     }
 
+    /// A mask on each of two mounted tabs, plus one mask without a screen marker, all with a frame.
+    private func twoTabsWithMasks(selected: String) -> (registry: NitpickRegistry, a: UUID, b: UUID) {
+        let registry = NitpickRegistry(tracking: true)
+        let a = UUID(), b = UUID()
+        registry.screenAppeared(id: a, name: "Tab A", focused: selected == "A")
+        registry.screenAppeared(id: b, name: "Tab B", focused: selected == "B")
+        for (name, screen, frame) in [
+            ("mask.a", a as UUID?, CGRect(x: 0, y: 0, width: 10, height: 10)),
+            ("mask.b", b as UUID?, CGRect(x: 0, y: 20, width: 10, height: 10)),
+            ("mask.loose", nil, CGRect(x: 0, y: 40, width: 10, height: 10)),
+        ] {
+            let id = UUID()
+            registry.registerElement(id: id, name: name, kind: .mask, screenID: screen)
+            registry.updateFrame(id: id, frame: frame)
+        }
+        return (registry, a, b)
+    }
+
+    private let frameA = CGRect(x: 0, y: 0, width: 10, height: 10)
+    private let frameB = CGRect(x: 0, y: 20, width: 10, height: 10)
+    private let frameLoose = CGRect(x: 0, y: 40, width: 10, height: 10)
+
+    @Test func aMaskOnAHiddenTabIsNotBlackOnTheShownTab() {
+        let (registry, _, _) = twoTabsWithMasks(selected: "A")
+        let frames = registry.maskFrames()
+        #expect(frames.contains(frameA))
+        #expect(!frames.contains(frameB), "the mask of the hidden tab must not count")
+    }
+
+    @Test func aMaskOnTheShownTabCountsAndFollowsTheFocus() {
+        let (registry, a, b) = twoTabsWithMasks(selected: "A")
+        #expect(registry.maskFrames().sorted { $0.minY < $1.minY } == [frameA, frameLoose])
+        registry.screenFocusChanged(id: a, focused: false)
+        registry.screenFocusChanged(id: b, focused: true)
+        #expect(registry.maskFrames().sorted { $0.minY < $1.minY } == [frameB, frameLoose])
+    }
+
+    @Test func aMaskWithoutAScreenMarkerAlwaysCounts() {
+        for selected in ["A", "B", "none"] {
+            let (registry, _, _) = twoTabsWithMasks(selected: selected)
+            #expect(registry.maskFrames().contains(frameLoose), "selected \(selected)")
+        }
+        // Also with no screen marked at all.
+        let registry = NitpickRegistry(tracking: true)
+        let id = UUID()
+        registry.registerElement(id: id, name: "mask", kind: .mask, screenID: nil)
+        registry.updateFrame(id: id, frame: frameLoose)
+        #expect(registry.maskFrames() == [frameLoose])
+    }
+
+    @Test func withoutAnyFocusedScreenOnlyMasksWithoutAScreenRemain() {
+        let (registry, _, _) = twoTabsWithMasks(selected: "none")
+        #expect(registry.maskFrames() == [frameLoose])
+    }
+
+    /// Registers a mask with a frame inside the given screen (or none).
+    @discardableResult
+    private func addMask(_ registry: NitpickRegistry, _ name: String, screen: UUID?, _ frame: CGRect) -> UUID {
+        let id = UUID()
+        registry.registerElement(id: id, name: name, kind: .mask, screenID: screen)
+        registry.updateFrame(id: id, frame: frame)
+        return id
+    }
+
+    private let frameHome = CGRect(x: 0, y: 0, width: 10, height: 10)
+    private let frameCover = CGRect(x: 0, y: 20, width: 10, height: 10)
+
+    @Test func aMaskUnderAHalfSheetStillCounts() {
+        // A half sheet is its own screen (current) above a screen that is still in view and has focus.
+        let registry = NitpickRegistry(tracking: true)
+        let home = UUID(), sheet = UUID()
+        registry.screenAppeared(id: home, name: "Home")
+        registry.screenAppeared(id: sheet, name: "Sheet")
+        addMask(registry, "mask.home", screen: home, frameHome)
+        let sheetMask = addMask(registry, "mask.sheet", screen: sheet, frameCover)
+        #expect(registry.currentScreen?.id == sheet)
+        #expect(registry.maskFrames().sorted { $0.minY < $1.minY } == [frameHome, frameCover])
+        // Closing the sheet removes its screen and its markers.
+        registry.screenDisappeared(id: sheet)
+        registry.removeElement(id: sheetMask)
+        #expect(registry.maskFrames() == [frameHome])
+    }
+
+    @Test func aMaskInAScreenOfYourOwnTabBarOrZStackWithoutFocusedStillCounts() {
+        // Pages in an own tab bar or ZStack that never pass `focused`: all have focus, the last one is current.
+        let registry = NitpickRegistry(tracking: true)
+        let pageA = UUID(), pageB = UUID()
+        registry.screenAppeared(id: pageA, name: "Page A")
+        registry.screenAppeared(id: pageB, name: "Page B")
+        addMask(registry, "mask.a", screen: pageA, frameHome)
+        addMask(registry, "mask.b", screen: pageB, frameCover)
+        #expect(registry.maskFrames().sorted { $0.minY < $1.minY } == [frameHome, frameCover])
+    }
+
+    @Test func aMaskInANestedOuterScreenStillCounts() {
+        // An outer screen marker around an inner one: the inner one is current, the outer one has focus too.
+        let registry = NitpickRegistry(tracking: true)
+        let outer = UUID(), inner = UUID()
+        registry.screenAppeared(id: outer, name: "Outer")
+        registry.screenAppeared(id: inner, name: "Inner")
+        addMask(registry, "mask.outer", screen: outer, frameHome)
+        addMask(registry, "mask.inner", screen: inner, frameCover)
+        #expect(registry.currentScreen?.id == inner)
+        #expect(registry.maskFrames().sorted { $0.minY < $1.minY } == [frameHome, frameCover])
+    }
+
+    @Test func aMaskInAHiddenScreenInsideACoverDropsOutButTheCoverMaskStays() {
+        // TabView with focused: false on the tab that is not selected, and a cover above the selected tab.
+        let registry = NitpickRegistry(tracking: true)
+        let selectedTab = UUID(), hiddenTab = UUID(), cover = UUID()
+        registry.screenAppeared(id: selectedTab, name: "Selected", focused: true)
+        registry.screenAppeared(id: hiddenTab, name: "Hidden", focused: false)
+        registry.screenAppeared(id: cover, name: "Cover")
+        addMask(registry, "mask.selected", screen: selectedTab, frameHome)
+        addMask(registry, "mask.hidden", screen: hiddenTab, CGRect(x: 0, y: 40, width: 10, height: 10))
+        addMask(registry, "mask.cover", screen: cover, frameCover)
+        #expect(registry.maskFrames().sorted { $0.minY < $1.minY } == [frameHome, frameCover])
+    }
+
+    @Test func aMaskWithAnUnknownScreenCounts() {
+        // The marker names a screen that is not (or no longer) in the table: no `focused == false`, so it counts.
+        let registry = NitpickRegistry(tracking: true)
+        addMask(registry, "mask.orphan", screen: UUID(), frameHome)
+        #expect(registry.maskFrames() == [frameHome])
+    }
+
     @Test func framesAreOnlyKeptWhileTracking() {
         let registry = NitpickRegistry()
         #expect(!registry.isTracking)

@@ -47,8 +47,8 @@ struct PayloadTests {
     @Test func sdkIsSwiftZeroTwoZero() throws {
         let object = try JSONSerialization.jsonObject(with: specificPayload().jsonData()) as! [String: Any]
         let sdk = object["sdk"] as! [String: String]
-        #expect(sdk == ["name": "swift", "version": "0.3.0"])
-        #expect(Nitpick.version == "0.3.0")
+        #expect(sdk == ["name": "swift", "version": "0.3.1"])
+        #expect(Nitpick.version == "0.3.1")
     }
 
     @Test func payloadHasNoScoreForEitherKind() throws {

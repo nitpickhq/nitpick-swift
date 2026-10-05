@@ -166,14 +166,34 @@ final class NitpickRegistry {
         let current = currentScreen?.id
         return elements.values.filter { element in
             guard !element.name.isEmpty else { return false }
-            if let screenID = element.screenID, let screen = screens[screenID], !screen.focused { return false }
-            guard let current else { return true }
-            return element.screenID == nil || element.screenID == current
+            return isOnScreenInView(element, current: current)
         }
     }
 
+    /// The frames of the masks to draw black on the picture. A mask only drops out when it sits inside a screen
+    /// that is known and explicitly has no focus (`focused == false`, for example a tab that is not selected).
+    /// A mask without a screen marker, on the current screen, or on another screen that can be in view (under a
+    /// half sheet, in a split view, in your own tab bar or ZStack without `focused`, in a nested outer screen)
+    /// always counts: better too much black than a leak. This is deliberately not the pointing rule.
     func maskFrames() -> [CGRect] {
-        elements.values.filter { $0.kind == .mask && $0.frame.width > 0 && $0.frame.height > 0 }.map(\.frame)
+        elements.values
+            .filter { $0.kind == .mask && $0.frame.width > 0 && $0.frame.height > 0 && !isInHiddenScreen($0) }
+            .map(\.frame)
+    }
+
+    /// True when the element sits inside a known screen with `focused == false`.
+    private func isInHiddenScreen(_ element: MarkedElement) -> Bool {
+        guard let screenID = element.screenID, let screen = screens[screenID] else { return false }
+        return !screen.focused
+    }
+
+    /// The screen rule for pointing. An element without a screen marker always counts. An element
+    /// inside a screen without focus never counts, also when no screen has focus. With a current screen, only
+    /// the elements of that screen count.
+    private func isOnScreenInView(_ element: MarkedElement, current: UUID?) -> Bool {
+        if let screenID = element.screenID, let screen = screens[screenID], !screen.focused { return false }
+        guard let current else { return true }
+        return element.screenID == nil || element.screenID == current
     }
 
     func reset() {

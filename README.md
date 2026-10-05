@@ -2,7 +2,7 @@
 
 In-app feedback for apps you build with AI. Users point at the exact thing that bugs them. Your coding agent pulls the report in over MCP and ships the fix.
 
-Version 0.3.0.
+Version 0.3.1.
 
 - iOS 17 or newer, Swift 6 language mode, no third-party dependencies, public APIs only.
 - When the app starts, the component asks Nitpick for the feedback settings of your app (which kinds are on, and two texts). That request carries no information about the user or the device, and nothing about it is stored on the platform. The tab shows once there are settings. Everything else waits until the user opens the panel, points, and taps Send.
@@ -113,16 +113,24 @@ A name must be equal to the screen's name (capitals count); a name that ends on 
 
 ## Look
 
-The component has the design Papier: a dense, calm surface with hairlines, small precise type and room. No transparency and no blur. The tab is narrow (22 points wide, 76 high, rounded on the inner side, flush with the screen edge, tap area at least 44 by 76 points). The panel has the two choices as rows (the row Point at something starts pointing at once; with only one kind on in the settings there is no panel with one row: the tab, `present()` and `Nitpick.present()` open that kind at once), the panel slides down when it closes (with Reduce Motion it only fades), pointing shows a compact pill at the top, and Send is a button on the right (44 points high, at least 112 wide). Only the color and the font are chosen in code. The rest is fixed: surface `#FFFFFF` in light and `#1C1C1E` in dark, text `#111111` / `#F2F2F2`, second text `#5C5C5C` / `#A1A1A6`, hairlines black at 12 percent / white at 14 percent. The tap spot and the frame of the element are always red `#FF3B30`. Light or dark follows the window of the app at the moment the component opens, and follows changes. All values are in `docs/ontwerp/component/papier.md`.
+The component has the design Papier: a dense, calm surface with hairlines, small precise type and room. No transparency and no blur. The tab is narrow, rounded on the two inner corners only and flush with the screen edge, and has four styles to choose from (`tabStyle`, below); every style has a tap area of at least 44 by 76 points. The panel has the two choices as rows (the row Point at something starts pointing at once; with only one kind on in the settings there is no panel with one row: the tab, `present()` and `Nitpick.present()` open that kind at once), the panel slides down when it closes (with Reduce Motion it only fades), pointing shows a compact pill at the top, and Send is a button on the right (44 points high, at least 112 wide). Only the color, the font and the style of the tab are chosen in code. The rest is fixed: surface `#FFFFFF` in light and `#1C1C1E` in dark, text `#111111` / `#F2F2F2`, second text `#5C5C5C` / `#A1A1A6`, hairlines black at 12 percent / white at 14 percent. The tap spot and the frame of the element are always red `#FF3B30`. Light or dark follows the window of the app at the moment the component opens, and follows changes. All values are in `docs/ontwerp/component/papier.md`.
 
 ```swift
 options.theme = NitpickTheme(
     color: .accent(Color("BrandBlue")),   // or .standard (default): ink, near black in light and near white in dark
-    fontName: "Inter-SemiBold"            // PostScript name of a font that is already in the app; nil = system font
+    fontName: "Inter-SemiBold",           // PostScript name of a font that is already in the app; nil = system font
+    tabStyle: .accent                     // .accent (default), .material, .ink or .icon, see below
 )
 ```
 
-- The color is used for the Send button, the rim of the tab (2 points, only on the side of the app: on the left of a tab on the right). The component picks black or white on top of it, whichever has the higher contrast.
+- The color is used for the Send button and for the tab in the style `.accent` and `.icon` (and the bar of `.ink`). The component picks black or white on top of it, whichever has the higher contrast (at least 4.5 to 1); with `.standard` the tab is ink.
+- `tabStyle` is the look of the tab on the screen edge. All four sit flush with the edge, are rounded on the two inner corners only, follow `tabEdge`, `tabVerticalPosition` and `tabScreens`, hide while the panel is open, and have the VoiceOver label "Feedback" in the language of the device:
+  - `.accent` (default): a solid tab in your color, 22 by 80 points, with a fine line in the text color at 20 percent.
+  - `.material`: a quiet frosted tab, 24 by 88 points, neutral at rest; your color shows only while it is pressed. It is opaque with Reduce Transparency.
+  - `.ink`: a black tab (near white in dark), 20 by 80 points, with a small bar in your color at the bottom.
+  - `.icon`: a small tab, 28 by 44 points, with only a speech bubble; it grows inward to "Feedback" while it is touched and opens the panel when you let go. With Reduce Motion it does not move.
+
+  A long label (for example "Commentaires") makes the tab taller (the icon tab wider) before the text gets smaller; the whole label always stays. The values are in `docs/ontwerp/lipje/README.md`.
 - The font is used for headings and buttons only; running text stays the system font. For Arabic, Hindi, Japanese, Korean and Chinese the component always uses the system font. A font that is not in the app is ignored.
 
 ## Texts and languages

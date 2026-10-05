@@ -127,57 +127,6 @@ struct PapierGelijkTests {
         #expect(object["element"] as? String == "checkout.pay_button", "\(object)")
     }
 
-    // MARK: The rim of the tab
-
-    /// The surface of the tab as pixels, one pixel to the point: the rim color is pure red.
-    private func tabPixels(edge: NitpickTabEdge, dark: Bool) throws -> (width: Int, height: Int, color: (Int, Int) -> (r: Int, g: Int, b: Int)) {
-        let view = TabSurface(edge: edge, rim: Color(red: 1, green: 0, blue: 0))
-            .frame(width: TabGeometry.visibleWidth, height: TabGeometry.length)
-            .environment(\.colorScheme, dark ? .dark : .light)
-        let renderer = ImageRenderer(content: view)
-        renderer.scale = 1
-        let cgImage = try #require(renderer.uiImage?.cgImage)
-        let width = cgImage.width, height = cgImage.height
-        var data = [UInt8](repeating: 0, count: width * height * 4)
-        let context = try #require(CGContext(data: &data, width: width, height: height, bitsPerComponent: 8, bytesPerRow: width * 4,
-                                             space: CGColorSpaceCreateDeviceRGB(), bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue))
-        context.draw(cgImage, in: CGRect(x: 0, y: 0, width: width, height: height))
-        return (width, height, { x, y in
-            let i = (y * width + x) * 4
-            return (Int(data[i]), Int(data[i + 1]), Int(data[i + 2]))
-        })
-    }
-
-    private func isRim(_ pixel: (r: Int, g: Int, b: Int)) -> Bool { pixel.r > 200 && pixel.g < 60 && pixel.b < 60 }
-
-    @Test(arguments: [false, true])
-    func theRimOfATabOnTheRightSitsOnTheLeftSideOnly(dark: Bool) throws {
-        let pixels = try tabPixels(edge: .right, dark: dark)
-        let middle = pixels.height / 2
-        #expect(pixels.width == 22 && pixels.height == 76)
-        // The side of the app: 2 points of rim.
-        #expect(isRim(pixels.color(0, middle)) && isRim(pixels.color(1, middle)), "left side: \(pixels.color(0, middle)) \(pixels.color(1, middle))")
-        #expect(!isRim(pixels.color(2, middle)), "the rim is 2 points wide")
-        // The other sides have none: the screen side, the top and the bottom.
-        #expect(!isRim(pixels.color(pixels.width - 1, middle)) && !isRim(pixels.color(pixels.width - 2, middle)))
-        for x in 12..<20 {
-            #expect(!isRim(pixels.color(x, 1)) && !isRim(pixels.color(x, pixels.height - 2)), "top and bottom at \(x)")
-        }
-    }
-
-    @Test(arguments: [false, true])
-    func theRimOfATabOnTheLeftSitsOnTheRightSideOnly(dark: Bool) throws {
-        let pixels = try tabPixels(edge: .left, dark: dark)
-        let middle = pixels.height / 2
-        let last = pixels.width - 1
-        #expect(isRim(pixels.color(last, middle)) && isRim(pixels.color(last - 1, middle)), "right side: \(pixels.color(last, middle)) \(pixels.color(last - 1, middle))")
-        #expect(!isRim(pixels.color(last - 2, middle)), "the rim is 2 points wide")
-        #expect(!isRim(pixels.color(0, middle)) && !isRim(pixels.color(1, middle)))
-        for x in 2..<10 {
-            #expect(!isRim(pixels.color(x, 1)) && !isRim(pixels.color(x, pixels.height - 2)), "top and bottom at \(x)")
-        }
-    }
-
     // MARK: Closing moves
 
     @Test func closingTheFormSlidesFirstAndTheWindowGoesAfterTheMovement() async throws {

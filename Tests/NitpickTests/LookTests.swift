@@ -77,10 +77,11 @@ struct LookTests {
         #expect(bottom.maxY == expectedBottom, "maxY \(bottom.maxY) vs \(expectedBottom) diff \(bottom.maxY - expectedBottom)")
     }
 
-    @Test func theTabIsNarrowToSeeAndEasyToHit() {
-        #expect(TabGeometry.visibleWidth == 22)
-        #expect(TabGeometry.length == 76)
-        #expect(TabGeometry.size.width >= 44 && TabGeometry.size.height >= 76, "the area that takes a tap is at least 44 by 76 points")
+    @Test func everyStyleIsEasyToHit() {
+        for style in NitpickTabStyle.allCases {
+            let metrics = TabMetrics.make(style: style, textWidth: 52)
+            #expect(metrics.hitSize.width >= 44 && metrics.hitSize.height >= 76, "\(style): the area that takes a tap is at least 44 by 76 points")
+        }
     }
 
     @Test func accentColor6E56CFGetsWhiteBecauseThatHasTheHigherContrast() {
